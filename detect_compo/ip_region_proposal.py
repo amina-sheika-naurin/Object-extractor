@@ -1,8 +1,11 @@
+import base64
+import io
 import cv2
 from os.path import join as pjoin
 import time
 import json
 import numpy as np
+from PIL import Image
 
 import detect_compo.lib_ip.ip_preprocessing as pre
 import detect_compo.lib_ip.ip_draw as draw
@@ -59,7 +62,7 @@ def compo_detection(input_img_path,  uied_params,
 
     # *** Step 4 ** nesting inspection: check if big compos have nesting element
     uicompos += nesting_inspection(org, grey, uicompos, ffl_block=uied_params['ffl-block'])
-    Compo.compos_update(uicompos, org.shape)
+    # Compo.compos_update(uicompos, org.shape)
     # draw.draw_bounding_box(org, uicompos, show=show, name='merged compo', write_path=pjoin(ip_root, name + '.jpg'), wait_key=wai_key)
 
     # *** Step 5 *** image inspection: recognize image -> remove noise in image -> binarize with larger threshold and reverse -> rectangular compo detection
@@ -82,8 +85,24 @@ def compo_detection(input_img_path,  uied_params,
         # draw.draw_bounding_box_class(org, uicompos, show=show, name='cls', write_path=pjoin(ip_root, 'result.jpg'))
         # draw.draw_bounding_box_class(org, uicompos, write_path=pjoin(output_root, 'result.jpg'))
 
-    # *** Step 7 *** save detection result
+    # *** Step 7 *** save detection result and attach compo base 64
     Compo.compos_update(uicompos, org.shape)
+    img = Image.open(input_img_path)
     output_compos = file.save_corners_json(uicompos)
+    for compo in output_compos['compos']:
+        # Define the bounding box based on the compos item
+        bbox = (compo['column_min'], compo['row_min'], compo['column_max'], compo['row_max'])
+        
+        # Crop the image
+        cropped_img = img.crop(bbox)
+        
+        # Convert the cropped image to base64
+        buffered = io.BytesIO()
+        cropped_img.save(buffered, format="PNG")
+        encoded_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        
+        # Attach base64 to the compos item
+        compo['base64'] = encoded_image
+
     return output_compos
     
